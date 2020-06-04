@@ -28,7 +28,7 @@ class SSTDataset(Dataset):
         # Preprocessing the text to be suitable for BERT
         tokens = self.tokenizer.tokenize(sentence)  # Tokenize the sentence
         tokens = ['[CLS]'] + tokens + [
-            '[SEP]']  # Insering the CLS and SEP token in the beginning and end of the sentence
+            '[SEP]']  # Inserting the CLS and SEP token in the beginning and end of the sentence
         if len(tokens) < self.maxlen:
             tokens = tokens + ['[PAD]' for _ in range(self.maxlen - len(tokens))]  # Padding sentences
         else:

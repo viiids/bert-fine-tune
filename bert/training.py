@@ -1,5 +1,4 @@
 import argparse
-from datetime import time
 
 import torch
 
@@ -21,7 +20,7 @@ def get_accuracy_from_logits(logits, labels):
     return acc
 
 
-def evaluate(net, criterion, dataloader, args):
+def evaluate(net, criterion, dataloader):
     net.eval()
     mean_acc, mean_loss = 0, 0
     count = 0
