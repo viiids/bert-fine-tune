@@ -3,3 +3,4 @@ transformers==2.11.0
 pandas==1.0.4
 torchvision==0.6.0
 matplotlib==3.2.1
+scikit-learn==0.23.1

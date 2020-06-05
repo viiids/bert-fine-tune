@@ -5,10 +5,10 @@ from transformers import BertTokenizer
 
 
 class TweetDataset(Dataset):
-    def __init__(self, filename, maxlen):
+    def __init__(self, data, maxlen):
 
         # Store the contents of the file in a pandas dataframe
-        self.df = pd.read_csv(filename)
+        self.df = data
 
         # Initialize the BERT tokenizer
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -31,30 +31,48 @@ class TweetDataset(Dataset):
         sentiment = self.df.iloc[index]['sentiment']
         selected_text = self.df.iloc[index]['selected_text']
 
-        sentence = sentiment + ': ' + orig_sentence
-
         # Preprocessing the text to be suitable for BERT
 
-        # Tokenize the sentence
-        tokens = self.tokenizer.tokenize(sentence)
+        # Encode the sentence. Does the following:
+        # 1. Inserting the CLS and SEP token in the beginning and end of the sentence
+        # 2. Generates attention mask
+        # 3. Generate token_type_ids used to differentiate first part of the sentence from the second
+        encoded_dict = self.tokenizer.encode_plus(
+            sentiment,
+            orig_sentence,
+            max_length=self.maxlen,
+            truncation_strategy='only_second',
+            pad_to_max_length=True,
+            return_tensors='pt',
+            return_token_type_ids=True,
+            return_attention_mask=True
+        )
+        tokens = encoded_dict['input_ids']
+        token_type_ids = encoded_dict['token_type_ids']
+        attn_mask = encoded_dict['attention_mask']
 
-        # Inserting the CLS and SEP token in the beginning and end of the sentence
-        tokens = ['[CLS]'] + tokens + ['[SEP]']
-        if len(tokens) < self.maxlen:
-            tokens = tokens + ['[PAD]' for _ in range(self.maxlen - len(tokens))]  # Padding sentences
-        else:
-            tokens = tokens[:self.maxlen - 1] + ['[SEP]']  # Prunning the list to be of specified max length
+        # Determine the beginning and end of the sentence
+        def phrase_start_finder(sentence, phrase):
+            if phrase not in sentence:
+                raise ValueError('s2 not substring of s1')
+            start = sentence.find(phrase)
+            return len(sentence[:start].strip().split(' '))
 
-        # Obtaining the indices of the tokens in the BERT Vocabulary
-        tokens_ids = self.tokenizer.convert_tokens_to_ids(tokens)
-        tokens_ids_tensor = torch.tensor(tokens_ids)  # Converting the list to a pytorch tensor
+        def phrase_end_finder(sentence, phrase):
+            if phrase not in sentence:
+                raise ValueError('s2 not substring of s1')
+            return phrase_start_finder(sentence, phrase) + len(phrase.strip().split(' ')) - 1
 
-        # Obtaining the attention mask i.e a tensor containing 1s for no padded tokens and 0s for padded ones
-        attn_mask = (tokens_ids_tensor != 0).long()
+        start = phrase_start_finder(orig_sentence, selected_text)
+        end = phrase_end_finder(orig_sentence, selected_text)
 
-        attn_mask = attn_mask.view(1, -1)
-        tokens_ids_tensor = tokens_ids_tensor.view(1, -1)
-        print(attn_mask.shape)
-        print(tokens_ids_tensor.shape)
-
-        return tokens_ids_tensor, attn_mask, selected_text, orig_sentence, sentiment
+        return {
+            'tokens': tokens,
+            'attention_mask': attn_mask,
+            'token_type_ids': token_type_ids,
+            'start': float(start),
+            'end': float(end),
+            'sentence': orig_sentence,
+            'selected_text': selected_text,
+            'sentiment': sentiment
+        }

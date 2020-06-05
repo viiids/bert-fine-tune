@@ -7,13 +7,13 @@ class TweetExtractorModel(nn.Module):
     def __init__(self, freeze_bert=True):
         super(TweetExtractorModel, self).__init__()
         # Instantiating BERT model object
-        self.bert_layer = BertModel.from_pretrained('bert-base-uncased')
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
 
+        # TODO(Viman): Before training on GPUs and finalization, remove this
         # Freeze bert layers
         # In first experiment, not training the previous layers
-        # TODO(Viman): Before training on GPUs, remove this
         if freeze_bert:
-            for p in self.bert_layer.parameters():
+            for p in self.bert_model.parameters():
                 p.requires_grad = False
 
         # Final layer. Needs two outputs which are supposed to be logits: startIndex and endIndex
@@ -24,15 +24,18 @@ class TweetExtractorModel(nn.Module):
         nn.init.normal_(self.fc.weight, std=0.02)
         nn.init.normal_(self.fc.bias, 0)
 
-    def forward(self, input_ids, attn_masks):
+    def forward(self, input_ids, attn_masks, token_type_ids):
 
         # Feeding the input to BERT model to obtain hidden_states of all the layers
-        _, hidden_states = self.bert_layer(input_ids, attn_masks)
+        response = self.bert_model(input_ids, attn_masks, token_type_ids)
 
-        hidden_states_at_each_layer = hidden_states[-1]
-        # embeddings_output = hidden_states[-2]
-        # X = torch.cat((hidden_states_at_each_layer, embeddings_output), dim=-1)
-        X = self.dropout(hidden_states_at_each_layer)
+        hidden_states = response[0]
+
+        # Shape of hidden_states is (1, 50, 768)
+        # TODO(Viman): Try mean as opposed to max
+        hidden_states, _ = torch.max(hidden_states, dim=1)
+
+        X = self.dropout(hidden_states)
         logits = self.fc(X)
 
         start_logits, end_logits = logits.split(1, dim=-1)
